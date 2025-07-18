@@ -1,0 +1,208 @@
+# Exportar datos de Excel origen a Excel destino:
+ 
+import pandas as pd
+import os
+import sys
+from openpyxl import load_workbook
+ 
+# --- Información del entorno Python (útil para depuración) ---
+print(f"Versión de Python en uso: {sys.version}")
+print(f"Ruta del ejecutable de Python: {sys.executable}")
+print(f"Rutas de búsqueda de módulos (PATH de Python):")
+for p in sys.path:
+    print(f"  {p}")
+ 
+def automatizar_excel_multiple_con_mapeo_opcional_posicional():
+    """
+    Automatiza la copia de datos entre múltiples pares de archivos Excel.
+    Permite especificar qué columnas del origen se copian y a qué columnas
+    del destino se mapean, basándose en los nombres de los encabezados.
+    Si no se especifica un mapeo de columnas, el script copiará las columnas
+    del origen al destino por su posición (como el script original).
+    """
+    print("\n--- Iniciando automatización de múltiples archivos Excel ---")
+    print("Las columnas se copiarán de origen a destino alineándose por NOMBRE de encabezado si se especifica un mapeo.")
+    print("Si NO se especifica un mapeo, las columnas se copiarán por POSICIÓN (comportamiento original).")
+ 
+    # --- CONFIGURACIÓN PARA MÚLTIPLES ARCHIVOS ---
+    # Define una lista de diccionarios, donde cada diccionario representa una "tarea"
+    # con un par de archivo origen y archivo destino, y sus configuraciones específicas.
+    # Cada tarea se procesará secuencialmente en el orden definido.
+ 
+    # IMPORTANTE:
+    # 1. Asegúrate de que las RUTAS COMPLETAS y los NOMBRES de las HOJAS sean correctos.
+    # 2. FILA_ENCABEZADOS_ORIGEN: La fila de Excel (0-indexed) donde están los ENCABEZADOS del archivo de ORIGEN.
+    #    - Si los encabezados están en la Fila 1 de Excel, es 0.
+    #    - Si los encabezados están en la Fila 6 de Excel (como en tu origen), es 5.
+    # 3. FILA_INICIO_DATOS_DESTINO: La fila de Excel (0-indexed) donde comenzarán los DATOS en el archivo de DESTINO.
+    #    - Si los datos comienzan en la Fila 2 de Excel, es 1.
+    #    - Si los datos comienzan en la Fila 12 de Excel (como en tu destino), es 11.
+    # 4. COLUMNAS_A_MAPEARD: (OPCIONAL) Un diccionario que define el mapeo.
+    #    - La clave es el nombre de la columna en el archivo de ORIGEN.
+    #    - El valor es el nombre de la columna CORRESPONDIENTE en el archivo de DESTINO.
+    #    - Si se omite o es un diccionario vacío `{}`, el script copiará las columnas
+    #      del origen al destino basándose en su posición, NO en su nombre.
+    # 5. Este script NO crea los archivos de destino ni sus hojas; DEBEN EXISTIR PREVIAMENTE
+    #    y tener los encabezados en la primera fila (o donde esperes leerlos para el destino).
+ 
+    # COS AS A TENER EN CUENTA - LA CONFIGURACIÓN DE TAREAS: EN ELLA LA CANTIDAD
+    # DE ARCHIVOS A EXPORTAR INFORMACIÓN;
+    # EL NOMBRE DE CADA DIRECCIÓN/UBICACIÓN DEL ARCHIVO;
+    # MUY IMPORTANTE LA FILA DE ENCABEZADOS CUYA BASE INDENTADA EN EXCEL PUEDE
+    # SER 1 PERO EN PANDAS/PYTHON ES 0, Y ASÍ EN LO SUCESIVO;
+    # PUEDEN AÑADIRSE MÁS ARCHIVOS ORIGEN, Y EDITAR LAS FORMAS EN CADA UNO DE
+    # ELLOS EN LA QUE SE VA A EXPORTAR LA INFORMACIÓN;
+    # FINALMENTE, MUY RELEVANTE EN LA SECCIÓN TRY COMO SEGUNDA ANIDACIÓN ENLA QUE
+    # MODIFICAR EL NÚMERO DE FILA DE LOS ENCABEZADOS DE DESTINO.
+ 
+    CONFIGURACION_TAREAS = [
+        {
+            "ARCHIVO_ORIGEN": r"C:\Users\AdminTragsa\Desktop\Tasques i dades personals\Analisi_de_dades\Python\Proyectos\Proyecto Excel\Muestras\241270_CM4B_W20250704_vA.xlsx",
+            "HOJA_ORIGEN": "PCD", # Nombre de la hoja en el archivo de origen
+            "FILA_ENCABEZADOS_ORIGEN": 5, # Encabezados del origen en la Fila 6 de Excel (5 en índice 0-based)
+            "ARCHIVO_DESTINO": r"C:\Users\AdminTragsa\Desktop\Tasques i dades personals\Analisi_de_dades\Python\Proyectos\Proyecto Excel\Muestras\GPI_71835_SEG_v1.xlsx",
+            "HOJA_DESTINO": "Seguiment", # Nombre de la hoja en el archivo de destino
+            "FILA_INICIO_DATOS_DESTINO": 11, # Datos se escribirán a partir de la Fila 12 de Excel (11 en índice 0-based)
+            "COLUMNAS_A_MAPEARD": { # Mapeo de columnas explícito por nombre
+                # Estos son los mapeos basados en tus imágenes:
+               "ColumnaOrigen1": "ColumnaDestino1",
+                "ColumnaOrigen2": "ColumnaDestino2",
+                
+ 
+                # Añade aquí todos los demás mapeos necesarios
+                # Ejemplo: "NOMBRE_COL_ORIGEN_EXACTO": "NOMBRE_COL_DESTINO_EXACTO",
+            }
+        },
+        # Puedes añadir más tareas aquí si es necesario
+    ]
+    # --- FIN DE CONFIGURACIÓN DE TAREAS ---
+ 
+    # --- Bucle principal para procesar cada tarea ---
+    for i, config in enumerate(CONFIGURACION_TAREAS):
+        print(f"\n--- Iniciando Proceso para Tarea {i+1}/{len(CONFIGURACION_TAREAS)} ---")
+ 
+        # Extraer la configuración específica para la tarea actual
+        archivo_origen = config["ARCHIVO_ORIGEN"]
+        hoja_origen = config["HOJA_ORIGEN"]
+        fila_encabezados_origen = config["FILA_ENCABEZADOS_ORIGEN"]
+        archivo_destino = config["ARCHIVO_DESTINO"]
+        hoja_destino = config["HOJA_DESTINO"]
+        fila_inicio_datos_destino = config["FILA_INICIO_DATOS_DESTINO"]
+        # Obtiene el mapeo. Si no existe la clave, devuelve un diccionario vacío.
+        columnas_a_mapear = config.get("COLUMNAS_A_MAPEARD", {})
+ 
+        print(f"  > Origen: '{os.path.basename(archivo_origen)}' (Hoja: '{hoja_origen}', Encabezados en Fila Excel: {fila_encabezados_origen + 1})")
+        print(f"  > Destino: '{os.path.basename(archivo_destino)}' (Hoja: '{hoja_destino}', Datos se escriben desde Fila Excel: {fila_inicio_datos_destino + 1})")
+ 
+        # 1. Verificar que los archivos existen antes de intentar procesarlos
+        if not os.path.exists(archivo_origen):
+            print(f"  Error: El archivo de origen NO se encontró en '{archivo_origen}'. Saltando esta tarea.")
+            continue
+        if not os.path.exists(archivo_destino):
+            print(f"  Error: El archivo de destino NO se encontró en '{archivo_destino}'. Saltando esta tarea.")
+            print("  Asegúrate de que el archivo de destino exista con la hoja y encabezados correctos antes de ejecutar el script.")
+            continue
+ 
+        try: # Este es el primer try/except para errores de lectura o preparación de datos
+            # 2. Leer los datos del archivo de origen
+            df_origen = pd.read_excel(archivo_origen, sheet_name=hoja_origen, header=fila_encabezados_origen)
+            print(f"  Datos leídos del origen. Filas: {len(df_origen)}, Columnas detectadas: {list(df_origen.columns)}")
+ 
+            # 3. Leer los encabezados del archivo de destino para saber qué columnas existen
+            # Basado en tus imágenes, los encabezados del destino están en la Fila 11 de Excel,
+            # lo que corresponde a header=10 para Pandas (0-based)
+            df_destino_encabezados = pd.read_excel(archivo_destino, sheet_name=hoja_destino, nrows=0, header=10) # <--- MODIFICADO AQUÍ
+            columnas_destino_existentes = list(df_destino_encabezados.columns)
+            print(f"  Encabezados leídos del destino: {columnas_destino_existentes}")
+ 
+            # 4. Preparar el DataFrame para el destino según el mapeo o la copia posicional
+            df_final_para_destino = pd.DataFrame() # DataFrame vacío para construir los datos a escribir
+ 
+            if columnas_a_mapear: # Si se especificó un mapeo explícito
+                print("  > Se ha especificado un mapeo de columnas. Copiando columnas según el mapeo de nombres.")
+                for col_origen, col_destino in columnas_a_mapear.items():
+                    if col_origen in df_origen.columns:
+                        if col_destino in columnas_destino_existentes:
+                            df_final_para_destino[col_destino] = df_origen[col_origen]
+                            print(f"    - Mapeado '{col_origen}' (Origen) a '{col_destino}' (Destino).")
+                        else:
+                            print(f"    - Advertencia: La columna de destino '{col_destino}' no existe en el archivo de destino (basado en la lectura de encabezados de la Fila 11). Ignorando el mapeo para '{col_origen}'.")
+                    else:
+                        print(f"    - Advertencia: La columna de origen '{col_origen}' no se encontró en el archivo de origen. Ignorando este mapeo.")
+            else: # Si NO hay mapeo explícito, copiar por POSICIÓN
+                print("  > No se especificó un mapeo de columnas. Copiando columnas por POSICIÓN (comportamiento original).")
+                num_columnas_origen = len(df_origen.columns)
+                num_columnas_destino = len(columnas_destino_existentes)
+ 
+                columnas_a_procesar_posicional = min(num_columnas_origen, num_columnas_destino)
+ 
+                df_final_para_destino = df_origen.iloc[:, :columnas_a_procesar_posicional].copy()
+                df_final_para_destino.columns = columnas_destino_existentes[:columnas_a_procesar_posicional]
+                print(f"  Se copiarán las primeras {columnas_a_procesar_posicional} columnas del origen y se les asignarán los nombres de las primeras {columnas_a_procesar_posicional} columnas del destino.")
+ 
+                if num_columnas_origen > num_columnas_destino:
+                    print(f"  Advertencia: El origen tenía {num_columnas_origen} columnas, pero el destino solo {num_columnas_destino}. Solo se copiaron las primeras {columnas_a_procesar_posicional} columnas del origen.")
+                elif num_columnas_origen < num_columnas_destino:
+                    print(f"  Nota: El origen tenía {num_columnas_origen} columnas, el destino {num_columnas_destino}. Las columnas adicionales en el destino NO serán modificadas por este script en las filas nuevas.")
+ 
+ 
+            if df_final_para_destino.empty:
+                print("  Advertencia: No se encontraron columnas para copiar según la configuración. No se escribirá nada.")
+                continue # Saltamos al siguiente ciclo del bucle for si no hay nada que copiar
+ 
+            # --- Escribiendo datos en el archivo de destino ---
+            print("\n  --- Escribiendo datos en el archivo de destino ---")
+            try: # Este es el segundo try/except para errores de escritura
+                # Cargar el libro de trabajo existente y la hoja
+                wb = load_workbook(archivo_destino)
+                ws = wb[hoja_destino]
+ 
+                # Obtener la fila de encabezados del destino para alinear correctamente
+                # Basado en tus imágenes, los encabezados del destino están en la Fila 11 de Excel.
+                # openpyxl usa indexación 1-based para filas y columnas.
+                fila_encabezados_destino_excel = 11 # <--- MODIFICADO AQUÍ (Confirma Fila 11 de Excel para openpyxl)
+ 
+                # Crear un mapeo de nombre de columna de destino a su índice (posición) en la hoja de Excel
+                columna_destino_a_indice_excel = {}
+                # Iterar sobre las celdas de la fila de encabezados de destino (Fila 11 de Excel)
+                for col_idx, cell in enumerate(ws[fila_encabezados_destino_excel], 1): # Enumerar desde 1 para las columnas de Excel
+                    if cell.value is not None:
+                        columna_destino_a_indice_excel[str(cell.value)] = col_idx
+ 
+                print(f"  Mapeo de columnas en destino (Nombre: Índice Excel): {columna_destino_a_indice_excel}")
+ 
+                # Iterar sobre las columnas del DataFrame preparado y escribir los datos
+                for col_nombre_preparado, serie_datos in df_final_para_destino.items():
+                    if col_nombre_preparado in columna_destino_a_indice_excel:
+                        col_indice_excel = columna_destino_a_indice_excel[col_nombre_preparado]
+                        # Escribir los datos de la serie en la columna correcta, a partir de fila_inicio_datos_destino
+                        # fila_inicio_datos_destino ya está en 0-based, así que le sumamos 1 para openpyxl
+                        for row_idx, valor in enumerate(serie_datos, start=fila_inicio_datos_destino + 1):
+                            ws.cell(row=row_idx, column=col_indice_excel, value=valor)
+                        print(f"  Datos de '{col_nombre_preparado}' escritos en la columna {col_indice_excel} de Excel.")
+                    else:
+                        print(f"  Advertencia: La columna '{col_nombre_preparado}' del DataFrame preparado no se encontró en los encabezados del destino (Fila 11). No se escribirá.")
+ 
+                wb.save(archivo_destino)
+                print(f"  Datos copiados exitosamente a la hoja '{hoja_destino}' del archivo '{os.path.basename(archivo_destino)}'.")
+                print(f"  Se copiaron {len(df_final_para_destino.columns)} columnas.")
+ 
+            except Exception as e:
+                print(f"  Error al escribir en el archivo de destino para esta tarea: {e}")
+                print("  Causa común: Asegúrate de que el archivo de destino NO esté abierto en Excel mientras se ejecuta el script.")
+                print(f"  También verifica que la hoja de destino ('{hoja_destino}') exista en el archivo '{os.path.basename(archivo_destino)}' y tenga los encabezados esperados en la Fila 11.")
+ 
+        except Exception as e: # Este es el primer except (para el primer try)
+            print(f"  Ocurrió un error inesperado durante la lectura o preparación de datos para esta tarea: {e}")
+            print(f"  Verifica la exactitud del nombre de la hoja de origen ('{hoja_origen}') en '{os.path.basename(archivo_origen)}'.")
+            print(f"  Asegúrate también de que la fila de encabezados ({fila_encabezados_origen + 1} en Excel) sea correcta en el archivo de origen.")
+            print("  Los encabezados no deben estar vacíos o corruptos.")
+ 
+    print("\n--- ¡Automatización de todos los archivos Excel completada! ---")
+ 
+# Llamar a la función principal para ejecutar la automatización
+if __name__ == "__main__":
+    automatizar_excel_multiple_con_mapeo_opcional_posicional()
+ 
+ 
+ 
